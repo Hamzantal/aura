@@ -27,14 +27,14 @@ class ModuleManager(commands.Cog):
         """
         if module.lower() == 'help':
             await ctx.channel.send(f'The {module} can only be reloaded.')
+            return
+        try:
+            self.bot.add_cog(cog_map[module])
+        except Exception as e:
+            await ctx.channel.send(f'Module with the name {module} does not exist.')
+            log.error('{}: {}'.format(type(e).__name__, e))
         else:
-            try:
-                self.bot.add_cog(cog_map[module])
-            except Exception as e:
-                await ctx.channel.send(f'Module with the name {module} does not exist.')
-                log.error('{}: {}'.format(type(e).__name__, e))
-            else:
-                await ctx.channel.send(f'Loaded module {module}')
+            await ctx.channel.send(f'Loaded module {module}')
 
     @has_required_role(command_name='unload')
     @commands.command(brief='unload a module, module names are listed in the help menu overview',
@@ -48,14 +48,14 @@ class ModuleManager(commands.Cog):
         """
         if module.lower() == 'help':
             await ctx.channel.send(f'The module {module} cannot be unloaded')
+            return
+        try:
+            self.bot.remove_cog(module)
+        except Exception as e:
+            await ctx.channel.send(f'Module with the name {module} does not exist.')
+            log.error('{}: {}'.format(type(e).__name__, e))
         else:
-            try:
-                self.bot.remove_cog(module)
-            except Exception as e:
-                await ctx.channel.send(f'Module with the name {module} does not exist.')
-                log.error('{}: {}'.format(type(e).__name__, e))
-            else:
-                await ctx.channel.send(f'Unloaded module {module}')
+            await ctx.channel.send(f'Unloaded module {module}')
 
     @has_required_role(command_name='reload')
     @commands.command(name='reload', brief='reload a module, module names are listed in the help menu overview',

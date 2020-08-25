@@ -31,34 +31,42 @@ class SettingsManager(commands.Cog):
             keywords = params.replace('karma keywords', '')
             args[2] = keywords.strip()
             args = args[:3]
+
         if len(args) > 3:
             await ctx.channel.send('You provided too many arguments to the config command.')
-        else:
-            if len(args) == 0:
-                embed = self.build_config_embed()
-                await ctx.channel.send(embed=embed)
-            else:
-                if args[0] == 'help':
-                    embed = self.build_config_help_embed(args)
-                    await ctx.channel.send(embed=embed)
-                elif args[0] not in hidden_config:
-                    if len(args) == 3:
-                        if args[0] in config.keys() and args[1] in config[args[0]].keys():
-                            config[args[0]][args[1]] = args[2]
-                            write_config()
-                            await ctx.channel.send(
-                                'Configuration parameter {} {} has been changed to {}'.format(args[0], args[1],
-                                                                                              args[2]))
-                        else:
-                            await ctx.channel.send('Configuration key does not exist.')
-                    else:
-                        if args[0] in config.keys():
-                            config[args[0]] = args[1]
-                            write_config()
-                            await ctx.channel.send(
-                                'Configuration parameter {} has been changed to {}'.format(args[0], args[1]))
-                        else:
-                            await ctx.channel.send('Configuration key does not exist.')
+            return
+
+        if len(args) == 0:
+            embed = self.build_config_embed()
+            await ctx.channel.send(embed=embed)
+            return
+
+        if args[0] == 'help':
+            embed = self.build_config_help_embed(args)
+            await ctx.channel.send(embed=embed)
+            return
+
+        if args[0] in hidden_config:
+            return
+
+        if args[0] not in config.keys():
+            await ctx.channel.send('Configuration key does not exist.')
+            return
+
+        if len(args) == 3:
+            if args[1] not in config[args[0]].keys():
+                await ctx.channel.send('Configuration key does not exist.')
+                return
+
+            config[args[0]][args[1]] = args[2]
+            write_config()
+            await ctx.channel.send('Configuration parameter {} {} has been changed to {}'
+                                   .format(args[0], args[1], args[2]))
+            return
+
+        config[args[0]] = args[1]
+        write_config()
+        await ctx.channel.send('Configuration parameter {} has been changed to {}'.format(args[0], args[1]))
 
     def build_config_embed(self) -> Embed:
         """
@@ -72,12 +80,14 @@ class SettingsManager(commands.Cog):
         for key in config.keys():
             if key not in hidden_config:
                 if isinstance(config[key], Mapping):
-                    for other_key in config[key].keys():
-                        config_embed.add_field(name=f'**{key} {other_key}**', value=config[key][other_key])
-                else:
                     config_embed.add_field(name=f'**{key}**', value=config[key])
+                    continue
+                for other_key in config[key].keys():
+                    config_embed.add_field(name=f'**{key} {other_key}**', value=config[key][other_key])
+
         config_embed = add_filler_fields(config_embed, config_embed.fields)
-        config_embed.set_footer(text='token, owner, prefix, database, logging level only only changeable before runtime')
+        config_embed.set_footer(
+            text='token, owner, prefix, database, logging level only only changeable before runtime')
         return config_embed
 
     def build_config_help_embed(self, args) -> Embed:
@@ -91,28 +101,23 @@ class SettingsManager(commands.Cog):
         if len(args) == 2:
             config_help_embed.title = args[1]
             config_description = descriptions[args[1]]
-            config_help_embed.description = config_description.description
-            config_help_embed.add_field(name='Possible Values',
-                                        value=self.build_possible_values(config_description.values))
         else:
             config_help_embed.title = args[1] + ' ' + args[2]
             config_description = descriptions[args[1]][args[2]]
-            config_help_embed.description = config_description.description
-            config_help_embed.add_field(name='Possible Values',
-                                        value=self.build_possible_values(config_description.values))
+
+        config_help_embed.description = config_description.description
+        config_help_embed.add_field(name='Possible Values', value=self.build_possible_values(config_description.values))
         return config_help_embed
 
-    def build_possible_values(self, value_list) -> str:
+    def build_possible_values(self, values) -> str:
         """
         Using the ConfigDescriptions in config.py build a possible value list for the config help embed.
-        :param value_list: list of values
+        :param values: list of values
         :return: result containing the values to show in the config help embed
         """
+        if len(values) == 1:
+            return values[0]
         result = ''
-        if len(value_list) > 1:
-            for value in value_list:
-                result += value + ", "
-            result = result[:-2]
-        else:
-            result = value_list[0]
-        return result
+        for value in values:
+            result += value + ", "
+        return result[:-2]

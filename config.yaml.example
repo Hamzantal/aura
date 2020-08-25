@@ -24,8 +24,8 @@ karma:
   log: 'true'
   message: 'false'
   self_delete: 'true'
-  time-emote: 'true'
-  time-message: 'false'
+  time_emote: 'true'
+  time_message: 'false'
 leaderboard: 10
 logging: INFO
 prefix: aura!

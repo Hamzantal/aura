@@ -38,14 +38,17 @@ class KarmaReducer(commands.Cog):
         member_set = await convert_content_to_member_set(ctx, args.split())
         for member in member_set:
             if member_has_role(member, roles()['admin']) and ctx.message.author.id != int(config['owner']):
-                await ctx.channel.send('You cannot reset the karma of an admin.')
-            else:
-                if member_has_role(member, roles()['moderator']) \
-                        and not member_has_role(ctx.message.author, roles()['admin']):
-                    await ctx.channel.send('Only admins can reset the karma of an moderator.')
-                else:
-                    self.karma_service.delete_all_karma(KarmaMember(ctx.guild.id, member.id))
-                    await ctx.channel.send('Removed all Karma from {}'.format(member.mention))
+                await ctx.channel.send(f'Skipping {member.display_name}, You cannot reset the karma of an admin.')
+                continue
+
+            if member_has_role(member, roles()['moderator']) \
+                    and not member_has_role(ctx.message.author, roles()['admin']):
+                await ctx.channel.send(f'Skipping {member.display_name}, ' +
+                                       'Only admins can reset the karma of an moderator.')
+                continue
+
+            self.karma_service.delete_all_karma(KarmaMember(ctx.guild.id, member.id))
+            await ctx.channel.send(f'Removed all Karma for {member.mention}')
 
 
 class KarmaBlocker(commands.Cog):
@@ -69,21 +72,23 @@ class KarmaBlocker(commands.Cog):
         member_set = await convert_content_to_member_set(ctx, args.split())
         for member in member_set:
             if member_has_role(member, roles()['admin']) and ctx.message.author.id != int(config['owner']):
-                await ctx.channel.send('You cannot blacklist an admin.')
-            else:
-                if member_has_role(member, roles()['moderator']) \
-                        and not member_has_role(ctx.message.author, roles()['admin']):
-                    await ctx.channel.send('Only admins can blacklist an moderator.')
-                else:
-                    self.blocker_service.blacklist(Member(ctx.guild.id, member.id))
-                    await ctx.channel.send('Blacklisted {}'.format(member.mention))
+                await ctx.channel.send(f'Skipping {member.display_name}, You cannot blacklist an admin.')
+                continue
+
+            if member_has_role(member, roles()['moderator']) \
+                    and not member_has_role(ctx.message.author, roles()['admin']):
+                await ctx.channel.send(f'Skipping {member.display_name}, Only admins can blacklist an moderator.')
+                continue
+
+            self.blocker_service.blacklist(Member(ctx.guild.id, member.id))
+            await ctx.channel.send(f'Blacklisted {member.mention} from giving karma.')
 
     @guild_only()
     @has_required_role(command_name='whitelist')
     @commands.command(brief='removes existing blacklist of the guild member',
                       usage='{}whitelist member_id\n{}whitelist <@!member_id>'
                       .format(config['prefix'], config['prefix']))
-    async def whitelist(self, ctx, *, args:str ) -> None:
+    async def whitelist(self, ctx, *, args: str) -> None:
         """
         whitelist the users provided to the command, both mentions and ids are valid.
         :param ctx: context of the invocation
@@ -93,14 +98,15 @@ class KarmaBlocker(commands.Cog):
         member_set = await convert_content_to_member_set(ctx, args.split())
         for member in member_set:
             if member_has_role(member, roles()['admin']) and ctx.message.author.id != int(config['owner']):
-                await ctx.channel.send('You cannot whitelist an admin.')
-            else:
-                if member_has_role(member, roles()['moderator']) \
-                        and not member_has_role(ctx.message.author, roles()['admin']):
-                    await ctx.channel.send('Only admins can whitelist an moderator.')
-                else:
-                    self.blocker_service.whitelist(Member(ctx.guild.id, member.id))
-                    await ctx.channel.send('Whitelisted {}'.format(member.mention))
+                await ctx.channel.send(f'Skipping {member.display_name}, You cannot whitelist an admin.')
+                continue
+
+            if member_has_role(member, roles()['moderator']) \
+                    and not member_has_role(ctx.message.author, roles()['admin']):
+                await ctx.channel.send(f'Skipping {member.display_name}, Only admins can whitelist an moderator.')
+
+            self.blocker_service.whitelist(Member(ctx.guild.id, member.id))
+            await ctx.channel.send(f'Whitelisted {member.mention}')
 
     @guild_only()
     @has_required_role(command_name='showblacklist')
@@ -120,14 +126,15 @@ class KarmaBlocker(commands.Cog):
         for blacklisted in blacklist:
             member = ctx.guild.get_member(int(blacklisted['member_id']))
             if member is not None:
-                return_message += member.name + '#' + member.discriminator + ' :: ' + str(member.id) \
-                                  + '\n'
-            else:
-                return_message += return_message + str(blacklisted['member_id']) + '\n'
-        if len(return_message) != 0:
-            if len(return_message) <= max_message_length:
-                await ctx.channel.send(return_message)
-            else:
-                await ctx.channel.send(file=File(fp=BytesIO(bytes(return_message, 'utf-8')), filename='Blacklist'))
-        else:
+                return_message += member.name + '#' + member.discriminator + ' :: '
+            return_message += member.id + '\n'
+
+        if len(return_message) == 0:
             await ctx.channel.send('Blacklist is empty')
+            return
+
+        if len(return_message) > max_message_length:
+            await ctx.channel.send(file=File(fp=BytesIO(bytes(return_message, 'utf-8')), filename='Blacklist'))
+            return
+
+        await ctx.channel.send(return_message)

@@ -25,10 +25,10 @@ class PermissionManager(commands.Cog):
                       usage='{}getpermission (Command)'.format(config['prefix']))
     async def get_permission(self, ctx, *, command_name: str):
         permission = permission_map[command_name]
-        if permission is not None:
-            await ctx.channel.send(f'{permission.upper()}')
-        else:
+        if permission is None:
             await ctx.channel.send(f'The command {command_name} does not exist.')
+            return
+        await ctx.channel.send(f'{permission.upper()}')
 
     @guild_only()
     @has_required_role(command_name='setpermission')
@@ -36,19 +36,22 @@ class PermissionManager(commands.Cog):
                       brief='set the permission of the provided command, help permission is unmodifiable',
                       usage='{}setpermission [command] [permission]'.format(config['prefix']))
     async def set_permission(self, ctx, command_name: str, permission: str):
-        if command_name in permission_map.keys():
-            if permission.lower() in aura_permissions:
-                if command_name != 'help':
-                    permission_map[command_name] = permission.lower()
-                    write_permissions()
-                    await ctx.channel.send(f'Permission for command: {command_name} has been changed to {permission}.')
-                else:
-                    await ctx.channel.send('Permission of command is unmodifiable.')
-            else:
-                await ctx.channel.send(f'Permission Level: {permission} is not valid.\n' +
-                                       f'Following are valid permission levels: {aura_permissions}.')
-        else:
+        if command_name not in permission_map.keys():
             await ctx.channel.send(f'The command {command_name} does not exist.')
+            return
+
+        if permission.lower() not in aura_permissions:
+            await ctx.channel.send(f'Permission Level: {permission} is not valid.\n' +
+                                   f'Following are valid permission levels: {aura_permissions}.')
+            return
+
+        if command_name == 'help':
+            await ctx.channel.send('Permission of command is unmodifiable.')
+            return
+
+        permission_map[command_name] = permission.lower()
+        write_permissions()
+        await ctx.channel.send(f'Permission for command: {command_name} has been changed to {permission}.')
 
     @guild_only()
     @has_required_role(command_name='showpermission')
@@ -61,7 +64,6 @@ class PermissionManager(commands.Cog):
         embed.add_field(name=bold_field.format('help'), value='everyone')
         for key in permission_map.keys():
             embed.add_field(name=bold_field.format(key), value=permission_map[key])
+
         balanced_embed = add_filler_fields(embed, embed.fields)
         await ctx.channel.send(embed=balanced_embed)
-
-

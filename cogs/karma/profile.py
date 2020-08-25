@@ -36,29 +36,20 @@ class KarmaProfile(commands.Cog):
         :param args: members to print the karma in the channel
         :return: None
         """
-        return_msg = ''
-        if len(args) == 0:
-            karma_member = KarmaMember(ctx.guild.id, ctx.message.author.id)
+        result = ''
+        members = [KarmaMember(ctx.guild.id, ctx.message.author.id)]
+        if len(args) != 0:
+            members = await convert_content_to_member_set(ctx, args.split())
+
+        for member in members:
+            karma_member = KarmaMember(ctx.guild.id, member.id)
             karma = self.karma_service.aggregate_member_by_karma(karma_member)
-            if karma is None:
-                return_msg += '{} has earned a total of {} karma\n'.format(ctx.message.author.name + '#'
-                                                                           + ctx.message.author.discriminator, 0)
-            else:
-                return_msg += '{} has earned a total of {} karma'.format(ctx.message.author.name + '#'
-                                                                         + ctx.message.author.discriminator, karma)
-        else:
-            member_set = await convert_content_to_member_set(ctx, args.split())
-            for member in member_set:
-                karma_member = KarmaMember(ctx.guild.id, member.id)
-                karma = self.karma_service.aggregate_member_by_karma(karma_member)
-                if karma is None:
-                    return_msg += '{} has earned a total of {} karma\n'.format(member.name + '#'
-                                                                               + member.discriminator, 0)
-                else:
-                    return_msg += '{} has earned a total of {} karma\n'.format(member.name + '#'
-                                                                               + member.discriminator,
-                                                                               karma)
-        await ctx.channel.send(return_msg)
+            result += '{} has earned a total of {} karma\n'.format(
+                member.name + '#' + member.discriminator,
+                0 if karma is None else karma
+            )
+
+        await ctx.channel.send(result)
 
     @guild_only()
     @has_required_role(command_name='profile')
@@ -72,29 +63,22 @@ class KarmaProfile(commands.Cog):
         :param args: args provided to profile command, only take the first one.
         :return: None
         """
-        if len(args) == 0:
-            karma_member = KarmaMember(ctx.guild.id, ctx.message.author.id)
-            embed = await self.build_profile_embed(karma_member, ctx.guild)
-            if ctx.message.author.nick is None:
-                embed.title = "Profile of {}".format(ctx.message.author.name + "#" + ctx.message.author.discriminator)
-            else:
-                embed.title = "Profile of {}".format(ctx.message.author.nick)
-            embed.set_thumbnail(url=ctx.author.avatar_url)
-
-            await ctx.channel.send(embed=embed)
+        author = ctx.message.author
+        if len(args) != 0:
+            member_id = args.split()[0]
+            member_set = await convert_content_to_member_set(ctx.guild.id, [member_id])
+            if len(member_set) == 0:
+                return
+            karma_member = member_set.pop()
         else:
-            member_list = args.split()
-            member_id = member_list[0]
-            member_set = await convert_content_to_member_set(ctx, [member_id])
-            for member in member_set:
-                karma_member = KarmaMember(ctx.guild.id, member.id)
-                embed = await self.build_profile_embed(karma_member, ctx.guild)
-                if member.nick is None:
-                    embed.title = "Profile of {}".format(member.name + "#" + member.discriminator)
-                else:
-                    embed.title = "Profile of {}".format(member.nick)
-                embed.set_thumbnail(url=member.avatar_url)
-                await ctx.channel.send(embed=embed)
+            karma_member = KarmaMember(ctx.guild.id, author.id)
+
+        embed = await self.build_profile_embed(karma_member, ctx.guild)
+        embed.title = 'Profile of {}'.format(
+            author.name + '#' + author.discriminator if author.nick is None
+            else author.nick
+        )
+        await ctx.channel.send(embed=embed)
 
     async def build_profile_embed(self, karma_member: KarmaMember, guild: discord.Guild) -> discord.Embed:
         """
@@ -108,26 +92,20 @@ class KarmaProfile(commands.Cog):
         embed.description = 'Karma Profile with breakdown of top {} channels'.format(profile()['channels'])
         channel_list = list(channel_cursor)
         total_karma = self.karma_service.aggregate_member_by_karma(karma_member)
-        if len(channel_list) > 0:
-            embed.add_field(name='0', value='0', inline=False)
-            index = 0
-            for document in channel_list:
-                channel = guild.get_channel(int(document['_id']['channel_id']))
-                if (index % 3) == 0 and index != 0:
-                    if channel is None:
-                        embed.add_field(name=bold_field.format('deleted channel'), value=document['karma'], inline=False)
-                    else:
-                        embed.add_field(name=bold_field.format(channel.name), value=document['karma'], inline=False)
-                else:
-                    if channel is None:
-                        embed.add_field(name=bold_field.format('deleted channel'), value=document['karma'], inline=True)
-                    else:
-                        embed.add_field(name=bold_field.format(channel.name), value=document['karma'], inline=True)
+        if len(channel_list) == 0:
+            embed.add_field(name="**total**", value='', inline=False)
+            return embed
 
-            embed = add_filler_fields(embed, channel_list)
-            embed.set_field_at(index=0, name="**total**", value=str(total_karma), inline=False)
-            return embed
-        else:
-            # small embed since no karma etc.
-            embed.add_field(name="**total**", value='0', inline=False)
-            return embed
+        embed.add_field(name='0', value='0', inline=False)
+        index = 0
+        for document in channel_list:
+            channel = guild.get_channel(int(document['_id']['channel_id']))
+            name = 'deleted channel' if channel is None else channel.name
+            value = document['karma']
+            inline = index == 0 or index % 3 != 0
+            embed.add_field(name=bold_field.format(name), value=value, inline=inline)
+            # index += 1
+
+        embed = add_filler_fields(embed, channel_list)
+        embed.set_field_at(index=0, name="**total**", value=str(total_karma), inline=False)
+        return embed
